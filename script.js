@@ -1,20 +1,39 @@
-// Study Reward - localStorage保存 / グラフ / カレンダースタンプ / ランダムご褒美
-const LS_KEY = "study_reward_v1";
+// Study Reward (3 pages) - localStorage only
+const LS_KEY = "study_reward_v2";
 
 const $ = (q) => document.querySelector(q);
 const $$ = (q) => Array.from(document.querySelectorAll(q));
 
-function todayKey(d = new Date()){
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,"0");
-  const day = String(d.getDate()).padStart(2,"0");
+const SUBJECTS = [
+  "簿記1級","FP2級","FP1級","簿記論","財務諸表論","基本情報","大学院勉強","投資","応用情報","TOEIC"
+];
+const MINUTES = [25,30,45,60,75,90,120,180,240];
+const PAGE_STEPS = [1,5,10,50,100];
+
+const STAMP_SHAPES = [
+  { id:"round", label:"まる" },
+  { id:"squircle", label:"角丸" },
+  { id:"diamond", label:"ひし形" },
+  { id:"star", label:"スター" },
+];
+const STAMP_COLORS = [
+  { id:"p1", label:"パステルブルー", color:"#b6d5ff" },
+  { id:"p2", label:"パステルピンク", color:"#ffd6e7" },
+  { id:"p3", label:"ミント", color:"#d8ffe8" },
+  { id:"p4", label:"レモン", color:"#fff2b6" },
+  { id:"p5", label:"ラベンダー", color:"#e6d7ff" },
+];
+
+function todayKey(d=new Date()){
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,"0");
+  const day=String(d.getDate()).padStart(2,"0");
   return `${y}-${m}-${day}`;
 }
-function monthKey(y, m0){ // m0: 0-11
+function monthKey(y,m0){ // m0: 0-11
   return `${y}-${String(m0+1).padStart(2,"0")}`;
 }
 function clamp(n,min,max){ return Math.max(min, Math.min(max,n)); }
-function round(n){ return Math.round(n); }
 
 function loadState(){
   try{
@@ -26,611 +45,664 @@ function loadState(){
 function saveState(state){
   localStorage.setItem(LS_KEY, JSON.stringify(state));
 }
-
 function defaultState(){
   return {
-    balance: 0,
-    settings: {
-      hourlyYen: 1500,
-      multiplier: 1.5,
-      dailyCap: 20000
-    },
-    // logs: {id, dateKey, subject, minutes, pages, memo, points}
-    logs: [],
-    // rewards: [{id,text}]
-    rewards: [],
-    // stamps: {"YYYY-MM-DD": true}
-    stamps: {},
-    // dailyEarned: {"YYYY-MM-DD": number}
-    dailyEarned: {}
+    points: 0,
+    settings: { goalPoint: 1500, dailyCap: 20000, multiplier: 1.2 },
+    logs: [], // {id, date, subject, minutes, pages, memo, pointsEarned}
+    rewards: [], // {id, text, cost}
+    stamps: {}, // "YYYY-MM": { "YYYY-MM-DD": {shape,color} }
+    lastUndo: null,
+    rangeDays: 7
   };
 }
 
 let state = loadState() || defaultState();
 
-// ---------- UI refs ----------
-const ptBalance = $("#ptBalance");
+/* ===== UI refs ===== */
+const pointsView = $("#pointsView");
 
-const subjectEl = $("#subject");
-const minutesEl = $("#minutes");
-const pagesEl = $("#pages");
-const memoEl = $("#memo");
-
+// Home form
+const subjectSelect = $("#subjectSelect");
+const minutesSelect = $("#minutesSelect");
+const pagesSelect = $("#pagesSelect");
+const memoInput = $("#memoInput");
 const saveLogBtn = $("#saveLog");
-const undoLastBtn = $("#undoLast");
+const undoLogBtn = $("#undoLog");
+const add25 = $("#add25");
+const add50 = $("#add50");
+const add100 = $("#add100");
 
-const hourlyEl = $("#hourlyYen");
-const multEl = $("#multiplier");
-const capEl = $("#dailyCap");
+// Calendar
+const calTitle = $("#calTitle");
+const monthLabel = $("#monthLabel");
+const calendarEl = $("#calendar");
+const prevMonth = $("#prevMonth");
+const nextMonth = $("#nextMonth");
+const stampTodayBtn = $("#stampToday");
+const clearMonthBtn = $("#clearMonth");
+const stampShape = $("#stampShape");
+const stampColor = $("#stampColor");
+const stampLegend = $("#stampLegend");
+
+// Log list
+const logList = $("#logList");
+
+// Analytics
+const statsEl = $("#stats");
+const lineCanvas = $("#lineChart");
+const barCanvas = $("#barChart");
+
+// Rewards
+const goalPoint = $("#goalPoint");
+const dailyCap = $("#dailyCap");
+const multiplier = $("#multiplier");
 const saveSettingsBtn = $("#saveSettings");
 const resetAllBtn = $("#resetAll");
 
-const rewardTextEl = $("#rewardText");
-const rewardCostEl = $("#rewardCost");
+const rewardText = $("#rewardText");
+const rewardCost = $("#rewardCost");
 const addRewardBtn = $("#addReward");
-const drawRewardBtn = $("#drawReward");
-const rewardListEl = $("#rewardList");
-const rewardResultEl = $("#rewardResult");
+const rewardList = $("#rewardList");
+const spinGachaBtn = $("#spinGacha");
 
-const bar7 = $("#bar7");
-const pie30 = $("#pie30");
+// Modal + confetti
+const modal = $("#modal");
+const resultText = $("#resultText");
+const resultHint = $("#resultHint");
+const closeModal = $("#closeModal");
+const confetti = $("#confetti");
 
-const calTitle = $("#calTitle");
-const calendar = $("#calendar");
-const prevMonthBtn = $("#prevMonth");
-const nextMonthBtn = $("#nextMonth");
-const stampTodayBtn = $("#stampToday");
-const clearStampsMonthBtn = $("#clearStampsMonth");
-
-const logListEl = $("#logList");
-
-// calendar cursor
-let calY = new Date().getFullYear();
-let calM0 = new Date().getMonth();
-
-// ---------- Sound (pon) ----------
-function playPon(){
-  // WebAudioで簡単な「ポン」
-  const AudioCtx = window.AudioContext || window.webkitAudioContext;
-  if(!AudioCtx) return;
-
-  const ctx = new AudioCtx();
-  const o = ctx.createOscillator();
-  const g = ctx.createGain();
-
-  o.type = "sine";
-  o.frequency.setValueAtTime(660, ctx.currentTime);
-  o.frequency.exponentialRampToValueAtTime(330, ctx.currentTime + 0.08);
-
-  g.gain.setValueAtTime(0.0001, ctx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.01);
-  g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
-
-  o.connect(g);
-  g.connect(ctx.destination);
-
-  o.start();
-  o.stop(ctx.currentTime + 0.13);
-
-  setTimeout(()=>ctx.close(), 250);
-}
-
-// ---------- Points ----------
-function pointsForMinutes(minutes){
-  const hourly = Number(state.settings.hourlyYen || 0);
-  const mul = Number(state.settings.multiplier || 1.5);
-  // 1分あたり = 時給/60, それを倍率、四捨五入でpt化
-  const perMin = (hourly / 60) * mul;
-  return Math.max(0, round(perMin * minutes));
-}
-
-function addPointsWithDailyCap(dateKey, points){
-  const cap = Number(state.settings.dailyCap || 0);
-  if(cap <= 0){
-    state.balance += points;
-    return {added: points, capped: false};
-  }
-  const earned = Number(state.dailyEarned[dateKey] || 0);
-  const remain = Math.max(0, cap - earned);
-  const add = Math.min(points, remain);
-  state.dailyEarned[dateKey] = earned + add;
-  state.balance += add;
-  return {added: add, capped: add < points};
-}
-
-// ---------- Render ----------
-function renderTop(){
-  ptBalance.textContent = String(state.balance || 0);
-}
-function renderSettings(){
-  hourlyEl.value = state.settings.hourlyYen ?? 1500;
-  multEl.value = String(state.settings.multiplier ?? 1.5);
-  capEl.value = state.settings.dailyCap ?? 20000;
-}
-
-function renderRewards(){
-  rewardListEl.innerHTML = "";
-  const arr = state.rewards || [];
-  if(arr.length === 0){
-    const li = document.createElement("li");
-    li.innerHTML = `<span class="tag">まだご褒美がありません。上の欄で追加してね。</span>`;
-    rewardListEl.appendChild(li);
-    return;
-  }
-  for(const r of arr){
-    const li = document.createElement("li");
-    li.innerHTML = `
-      <div>
-        <div>${escapeHtml(r.text)}</div>
-        <div class="tag">ID: ${r.id}</div>
-      </div>
-      <button class="xbtn" data-del="${r.id}">削除</button>
-    `;
-    rewardListEl.appendChild(li);
-  }
-
-  $$("[data-del]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const id = btn.getAttribute("data-del");
-      state.rewards = state.rewards.filter(x => String(x.id) !== String(id));
-      saveState(state);
-      renderRewards();
-    });
+/* ===== Tabs / Pages ===== */
+$$(".tab").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const page = btn.dataset.page;
+    $$(".tab").forEach(b=>b.classList.toggle("isActive", b===btn));
+    $$(".page").forEach(p=>p.classList.toggle("isShow", p.id === `page-${page}`));
+    // refresh charts when open analytics
+    if(page==="analytics") drawAnalytics();
   });
-}
-
-function renderLogs(){
-  const logs = (state.logs || []).slice().reverse().slice(0,50);
-  logListEl.innerHTML = "";
-  if(logs.length === 0){
-    logListEl.innerHTML = `<div class="hint">まだ記録がありません。</div>`;
-    return;
-  }
-  for(const l of logs){
-    const div = document.createElement("div");
-    div.className = "logItem";
-    div.innerHTML = `
-      <div class="logTop">
-        <div><b>${escapeHtml(l.subject || "（科目なし）")}</b> / ${l.minutes}分 / ${l.points}pt</div>
-        <div class="tag">${l.dateKey}</div>
-      </div>
-      <div class="logSub">
-        ページ：${l.pages ?? 0} / メモ：${escapeHtml(l.memo || "")}
-      </div>
-    `;
-    logListEl.appendChild(div);
-  }
-}
-
-// ---------- Charts ----------
-function drawBar7(){
-  const ctx = bar7.getContext("2d");
-  const W = bar7.width, H = bar7.height;
-  ctx.clearRect(0,0,W,H);
-
-  // background
-  ctx.fillStyle = "rgba(0,0,0,0.15)";
-  ctx.fillRect(0,0,W,H);
-
-  const days = [];
-  const now = new Date();
-  for(let i=6; i>=0; i--){
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    days.push(d);
-  }
-
-  const sums = days.map(d=>{
-    const k = todayKey(d);
-    const mins = (state.logs || []).filter(x=>x.dateKey===k).reduce((a,b)=>a+Number(b.minutes||0),0);
-    return mins;
-  });
-
-  const maxMin = Math.max(30, ...sums);
-  const pad = 18;
-  const chartW = W - pad*2;
-  const chartH = H - pad*2;
-
-  // axis labels
-  ctx.fillStyle = "rgba(229,231,235,0.85)";
-  ctx.font = "12px system-ui";
-  ctx.fillText("h", 6, 14);
-
-  // bars
-  const gap = 10;
-  const bw = (chartW - gap*6) / 7;
-
-  for(let i=0;i<7;i++){
-    const x = pad + i*(bw+gap);
-    const hours = sums[i] / 60;
-    const bh = (sums[i] / maxMin) * (chartH - 28);
-    const y = pad + (chartH - 28) - bh;
-
-    // bar
-    ctx.fillStyle = "rgba(124,58,237,0.85)";
-    roundRect(ctx, x, y, bw, bh, 10, true);
-
-    // label date
-    const d = days[i];
-    const label = `${d.getMonth()+1}/${d.getDate()}`;
-    ctx.fillStyle = "rgba(156,163,175,0.9)";
-    ctx.fillText(label, x, pad + chartH - 10);
-
-    // value
-    ctx.fillStyle = "rgba(229,231,235,0.9)";
-    ctx.fillText(hours.toFixed(1), x, y - 6);
-  }
-}
-
-function drawPie30(){
-  const ctx = pie30.getContext("2d");
-  const W = pie30.width, H = pie30.height;
-  ctx.clearRect(0,0,W,H);
-
-  ctx.fillStyle = "rgba(0,0,0,0.15)";
-  ctx.fillRect(0,0,W,H);
-
-  const now = new Date();
-  const since = new Date(now);
-  since.setDate(now.getDate() - 29);
-
-  // subject -> minutes
-  const map = new Map();
-  for(const l of (state.logs||[])){
-    const d = parseDateKey(l.dateKey);
-    if(!d) continue;
-    if(d < since) continue;
-
-    const s = (l.subject || "その他").trim() || "その他";
-    map.set(s, (map.get(s) || 0) + Number(l.minutes||0));
-  }
-
-  const entries = Array.from(map.entries()).sort((a,b)=>b[1]-a[1]);
-  const total = entries.reduce((a,b)=>a+b[1],0);
-
-  if(total <= 0){
-    ctx.fillStyle = "rgba(156,163,175,0.9)";
-    ctx.font = "14px system-ui";
-    ctx.fillText("まだデータがありません", 18, 40);
-    return;
-  }
-
-  // center / radius
-  const cx = 120, cy = H/2;
-  const r = 78;
-
-  let start = -Math.PI/2;
-
-  // 5色くらいを回す（派手すぎない）
-  const colors = [
-    "rgba(124,58,237,0.90)",
-    "rgba(34,197,94,0.80)",
-    "rgba(59,130,246,0.80)",
-    "rgba(245,158,11,0.80)",
-    "rgba(236,72,153,0.75)",
-    "rgba(148,163,184,0.70)",
-  ];
-
-  for(let i=0;i<entries.length;i++){
-    const [label, mins] = entries[i];
-    const frac = mins / total;
-    const ang = frac * Math.PI*2;
-    const end = start + ang;
-
-    ctx.beginPath();
-    ctx.moveTo(cx,cy);
-    ctx.arc(cx,cy,r,start,end);
-    ctx.closePath();
-    ctx.fillStyle = colors[i % colors.length];
-    ctx.fill();
-
-    start = end;
-  }
-
-  // hole (donut)
-  ctx.beginPath();
-  ctx.arc(cx,cy,38,0,Math.PI*2);
-  ctx.fillStyle = "rgba(15,23,42,0.95)";
-  ctx.fill();
-
-  ctx.fillStyle = "rgba(229,231,235,0.9)";
-  ctx.font = "12px system-ui";
-  ctx.fillText("30日", cx-14, cy-2);
-
-  // legend right
-  const lx = 230;
-  let ly = 30;
-  ctx.font = "12px system-ui";
-
-  for(let i=0;i<Math.min(entries.length, 10);i++){
-    const [label, mins] = entries[i];
-    const pct = Math.round((mins/total)*100);
-    ctx.fillStyle = colors[i % colors.length];
-    ctx.fillRect(lx, ly-10, 10, 10);
-
-    ctx.fillStyle = "rgba(229,231,235,0.9)";
-    ctx.fillText(`${label}  ${pct}%  (${Math.round(mins/60*10)/10}h)`, lx+16, ly);
-    ly += 18;
-  }
-}
-
-// ---------- Calendar ----------
-function renderCalendar(){
-  calTitle.textContent = `${calY}年${calM0+1}月`;
-
-  calendar.innerHTML = "";
-  const first = new Date(calY, calM0, 1);
-  const last = new Date(calY, calM0+1, 0);
-  const startDow = first.getDay(); // 0 Sun
-
-  // empty cells
-  for(let i=0;i<startDow;i++){
-    const ph = document.createElement("div");
-    ph.className = "day";
-    ph.style.opacity = "0";
-    ph.style.pointerEvents = "none";
-    calendar.appendChild(ph);
-  }
-
-  for(let d=1; d<=last.getDate(); d++){
-    const cellDate = new Date(calY, calM0, d);
-    const k = todayKey(cellDate);
-    const stamped = !!state.stamps[k];
-
-    const div = document.createElement("div");
-    div.className = "day" + (stamped ? " stamped" : "");
-    div.innerHTML = `<div class="n">${d}</div>` + (stamped ? `<div class="stamp"></div>` : "");
-
-    div.addEventListener("click", ()=>{
-      toggleStamp(k);
-    });
-
-    calendar.appendChild(div);
-  }
-}
-
-function toggleStamp(dateKey){
-  if(state.stamps[dateKey]){
-    delete state.stamps[dateKey];
-  }else{
-    state.stamps[dateKey] = true;
-    playPon();
-  }
-  saveState(state);
-  renderCalendar();
-}
-
-// ---------- Helpers ----------
-function parseDateKey(k){
-  // "YYYY-MM-DD"
-  if(!k || !/^\d{4}-\d{2}-\d{2}$/.test(k)) return null;
-  const [y,m,d] = k.split("-").map(Number);
-  return new Date(y, m-1, d);
-}
-
-function escapeHtml(s){
-  return String(s)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
-function roundRect(ctx, x, y, w, h, r, fill){
-  const rr = Math.min(r, w/2, h/2);
-  ctx.beginPath();
-  ctx.moveTo(x+rr, y);
-  ctx.arcTo(x+w, y, x+w, y+h, rr);
-  ctx.arcTo(x+w, y+h, x, y+h, rr);
-  ctx.arcTo(x, y+h, x, y, rr);
-  ctx.arcTo(x, y, x+w, y, rr);
-  if(fill) ctx.fill();
-}
-
-// ---------- Actions ----------
-function bindQuickButtons(){
-  $$("[data-add-min]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const add = Number(btn.getAttribute("data-add-min") || 0);
-      minutesEl.value = String((Number(minutesEl.value||0) + add));
-      minutesEl.focus();
-    });
-  });
-
-  $$("[data-add-page]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const add = Number(btn.getAttribute("data-add-page") || 0);
-      pagesEl.value = String((Number(pagesEl.value||0) + add));
-      pagesEl.focus();
-    });
-  });
-}
-
-saveLogBtn.addEventListener("click", ()=>{
-  const subject = (subjectEl.value || "").trim();
-  const minutes = clamp(Number(minutesEl.value || 0), 0, 24*60);
-  const pages = clamp(Number(pagesEl.value || 0), 0, 999999);
-  const memo = (memoEl.value || "").trim();
-
-  if(minutes <= 0){
-    alert("勉強時間（分）を入力してね（例：25）");
-    minutesEl.focus();
-    return;
-  }
-
-  const dateKey = todayKey();
-  const rawPoints = pointsForMinutes(minutes);
-  const {added, capped} = addPointsWithDailyCap(dateKey, rawPoints);
-
-  const log = {
-    id: String(Date.now()),
-    dateKey,
-    subject: subject || "その他",
-    minutes,
-    pages,
-    memo,
-    points: added
-  };
-  state.logs.push(log);
-
-  saveState(state);
-  renderAll();
-
-  // 入力を少し楽に：科目は残す、分とページだけクリア
-  minutesEl.value = "";
-  pagesEl.value = "";
-  memoEl.value = "";
-
-  if(capped){
-    toast(`上限により ${added}pt だけ加算（上限到達）`);
-  }else{
-    toast(`+${added}pt 加算しました`);
-  }
 });
 
-undoLastBtn.addEventListener("click", ()=>{
-  const last = state.logs.pop();
-  if(!last){
-    toast("取り消せる記録がありません");
-    return;
-  }
-  // 取り消し：当日の獲得ptも戻す（可能な範囲）
-  state.balance = Math.max(0, Number(state.balance||0) - Number(last.points||0));
-  if(state.dailyEarned[last.dateKey] != null){
-    state.dailyEarned[last.dateKey] = Math.max(0, Number(state.dailyEarned[last.dateKey]) - Number(last.points||0));
-  }
-  saveState(state);
-  renderAll();
-  toast("直前の記録を取り消しました");
+/* ===== Init selects ===== */
+function fillSelect(el, items, mapper){
+  el.innerHTML = "";
+  items.forEach((it)=>{
+    const opt = document.createElement("option");
+    const {value,label} = mapper(it);
+    opt.value = value;
+    opt.textContent = label;
+    el.appendChild(opt);
+  });
+}
+fillSelect(subjectSelect, SUBJECTS, (s)=>({value:s,label:s}));
+fillSelect(minutesSelect, MINUTES, (m)=>({value:String(m),label:`${m}分`}));
+fillSelect(pagesSelect, ["なし", ...PAGE_STEPS], (p)=>{
+  if(p==="なし") return {value:"", label:"なし"};
+  return {value:String(p), label:`+${p}`};
 });
+fillSelect(stampShape, STAMP_SHAPES, (s)=>({value:s.id,label:s.label}));
+fillSelect(stampColor, STAMP_COLORS, (c)=>({value:c.id,label:c.label}));
 
+/* ===== Points + settings UI ===== */
+function updatePoints(){
+  pointsView.textContent = String(state.points);
+}
+function loadSettingsUI(){
+  goalPoint.value = state.settings.goalPoint;
+  dailyCap.value = state.settings.dailyCap;
+  multiplier.value = state.settings.multiplier;
+}
 saveSettingsBtn.addEventListener("click", ()=>{
-  state.settings.hourlyYen = clamp(Number(hourlyEl.value || 0), 0, 999999);
-  state.settings.multiplier = clamp(Number(multEl.value || 1.5), 1.0, 5.0);
-  state.settings.dailyCap = clamp(Number(capEl.value || 0), 0, 9999999);
+  state.settings.goalPoint = Math.max(0, Number(goalPoint.value||0));
+  state.settings.dailyCap = Math.max(0, Number(dailyCap.value||0));
+  state.settings.multiplier = clamp(Number(multiplier.value||1.2), 0.5, 3);
   saveState(state);
-  toast("設定を保存しました");
+  toast("設定を保存しました ✅");
 });
-
 resetAllBtn.addEventListener("click", ()=>{
-  const ok = confirm("全データを削除します。戻せません。OK？");
-  if(!ok) return;
+  if(!confirm("全データを削除します。よろしいですか？（元に戻せません）")) return;
   state = defaultState();
   saveState(state);
   renderAll();
   toast("全データを削除しました");
 });
 
-addRewardBtn.addEventListener("click", ()=>{
-  const text = (rewardTextEl.value || "").trim();
-  if(!text){
-    rewardTextEl.focus();
-    return;
-  }
-  state.rewards.push({ id: String(Date.now()), text });
-  rewardTextEl.value = "";
+/* ===== Logs ===== */
+function computeEarnedPoints(minutes, pages){
+  // 基本：分×倍率（やりすぎ防止で上限は dailyCap 側で）
+  const base = Math.round(minutes * 10 * state.settings.multiplier); // 25分 → 250pt*倍率
+  const pageBonus = pages ? Math.round(pages * 8) : 0;
+  return base + pageBonus;
+}
+function todayEarnedTotal(){
+  const t = todayKey();
+  return state.logs
+    .filter(l=>l.date===t)
+    .reduce((a,b)=>a+b.pointsEarned, 0);
+}
+function addPointsSafely(pts){
+  const cap = state.settings.dailyCap;
+  const already = todayEarnedTotal();
+  const allowed = Math.max(0, cap - already);
+  const add = Math.min(allowed, pts);
+  state.points += add;
+  return {added:add, blocked: pts-add};
+}
+
+saveLogBtn.addEventListener("click", ()=>{
+  const subject = subjectSelect.value;
+  const minutes = Number(minutesSelect.value);
+  const pages = pagesSelect.value ? Number(pagesSelect.value) : 0;
+  const memo = memoInput.value.trim();
+
+  const earned = computeEarnedPoints(minutes, pages);
+  const {added, blocked} = addPointsSafely(earned);
+
+  const log = {
+    id: crypto.randomUUID(),
+    date: todayKey(),
+    subject,
+    minutes,
+    pages,
+    memo,
+    pointsEarned: added
+  };
+  state.logs.unshift(log);
+  state.logs = state.logs.slice(0, 2000);
+  state.lastUndo = { type:"log", log };
+
   saveState(state);
-  renderRewards();
-  toast("ご褒美を追加しました");
+  memoInput.value = "";
+  renderHome();
+  updatePoints();
+  if(blocked>0) toast(`記録OK！ +${added}pt（上限で ${blocked}pt は加算なし）`);
+  else toast(`記録OK！ +${added}pt`);
 });
 
-drawRewardBtn.addEventListener("click", ()=>{
-  const cost = clamp(Number(rewardCostEl.value || 0), 0, 99999999);
-  const list = state.rewards || [];
-  if(list.length === 0){
-    toast("ご褒美がありません。先に追加してね");
-    return;
-  }
-  if(cost > 0 && state.balance < cost){
-    toast("ポイントが足りません");
-    return;
-  }
-
-  // ランダム
-  const pick = list[Math.floor(Math.random() * list.length)];
-  if(cost > 0){
-    state.balance = Math.max(0, state.balance - cost);
+undoLogBtn.addEventListener("click", ()=>{
+  const u = state.lastUndo;
+  if(!u || u.type!=="log") return toast("取り消せる記録がありません");
+  const id = u.log.id;
+  const idx = state.logs.findIndex(l=>l.id===id);
+  if(idx>=0){
+    state.points = Math.max(0, state.points - state.logs[idx].pointsEarned);
+    state.logs.splice(idx,1);
+    state.lastUndo = null;
     saveState(state);
-    renderTop();
+    renderHome();
+    updatePoints();
+    toast("直前の記録を取り消しました");
   }
-
-  rewardResultEl.textContent = `🎁 ${pick.text}` + (cost>0 ? `（-${cost}pt）` : "");
-  toast("ランダムで選びました");
 });
 
-prevMonthBtn.addEventListener("click", ()=>{
-  calM0--;
-  if(calM0 < 0){ calM0 = 11; calY--; }
+function manualAdd(pts){
+  const {added, blocked} = addPointsSafely(pts);
+  state.lastUndo = null;
+  saveState(state);
+  updatePoints();
+  if(blocked>0) toast(`+${added}pt（上限で ${blocked}pt は加算なし）`);
+  else toast(`+${added}pt`);
+}
+add25.addEventListener("click", ()=>manualAdd(25));
+add50.addEventListener("click", ()=>manualAdd(50));
+add100.addEventListener("click", ()=>manualAdd(100));
+
+function renderLogs(){
+  const logs = state.logs.slice(0,50);
+  logList.innerHTML = "";
+  if(logs.length===0){
+    logList.innerHTML = `<div class="small dim">まだ記録がありません。</div>`;
+    return;
+  }
+  logs.forEach(l=>{
+    const el = document.createElement("div");
+    el.className = "logItem";
+    const sub = `${l.date} / ${l.subject} / ${l.minutes}分` + (l.pages?` / +${l.pages}p`:"") + (l.memo?` / ${escapeHtml(l.memo)}`:"");
+    el.innerHTML = `
+      <div class="logMain">
+        <div class="logTop">${l.subject} ・ ${l.minutes}分</div>
+        <div class="logSub">${sub}</div>
+      </div>
+      <div class="logRight">+${l.pointsEarned}pt</div>
+    `;
+    logList.appendChild(el);
+  });
+}
+
+/* ===== Calendar + stamps ===== */
+let viewDate = new Date();
+function renderStampLegend(){
+  stampLegend.innerHTML = "";
+  STAMP_COLORS.forEach(c=>{
+    const item = document.createElement("div");
+    item.className = "legendItem";
+    item.innerHTML = `<span class="stamp round" style="background:${c.color}; width:18px; height:18px;"></span>${c.label}`;
+    stampLegend.appendChild(item);
+  });
+}
+function setMonthLabel(){
+  monthLabel.textContent = monthKey(viewDate.getFullYear(), viewDate.getMonth());
+  calTitle.textContent = `${viewDate.getFullYear()}年${viewDate.getMonth()+1}月`;
+}
+function getStampForDay(ym, ymd){
+  return state.stamps?.[ym]?.[ymd] || null;
+}
+function renderCalendar(){
+  setMonthLabel();
+  calendarEl.innerHTML = "";
+
+  const y = viewDate.getFullYear();
+  const m0 = viewDate.getMonth();
+  const ym = monthKey(y,m0);
+
+  const first = new Date(y,m0,1);
+  const startDow = first.getDay(); // 0 Sun
+  const start = new Date(y,m0,1 - startDow);
+
+  const days = 42; // 6 weeks
+  for(let i=0;i<days;i++){
+    const d = new Date(start);
+    d.setDate(start.getDate()+i);
+    const isOther = d.getMonth()!==m0;
+    const ymd = todayKey(d);
+
+    const day = document.createElement("div");
+    day.className = "day" + (isOther?" isOther":"");
+    day.innerHTML = `<div class="dayNum">${d.getDate()}</div>`;
+
+    const stamp = getStampForDay(ym, ymd);
+    if(stamp){
+      const colorObj = STAMP_COLORS.find(c=>c.id===stamp.color) || STAMP_COLORS[0];
+      const shape = stamp.shape || "round";
+      const st = document.createElement("div");
+      st.className = `stamp ${shape}`;
+      st.style.background = colorObj.color;
+      if(shape==="diamond"){
+        st.innerHTML = `<span>✓</span>`;
+      }else{
+        st.textContent = "✓";
+      }
+      day.appendChild(st);
+    }
+
+    calendarEl.appendChild(day);
+  }
+}
+
+function setStampOnDay(ymd){
+  const y = viewDate.getFullYear();
+  const m0 = viewDate.getMonth();
+  const ym = monthKey(y,m0);
+  state.stamps[ym] = state.stamps[ym] || {};
+  state.stamps[ym][ymd] = {
+    shape: stampShape.value,
+    color: stampColor.value
+  };
+  saveState(state);
   renderCalendar();
-});
-nextMonthBtn.addEventListener("click", ()=>{
-  calM0++;
-  if(calM0 > 11){ calM0 = 0; calY++; }
-  renderCalendar();
-});
+}
 
 stampTodayBtn.addEventListener("click", ()=>{
-  const k = todayKey();
-  state.stamps[k] = true;
-  saveState(state);
-  playPon();
-  renderCalendar();
-  toast("今日にスタンプしました");
-});
-
-clearStampsMonthBtn.addEventListener("click", ()=>{
-  const mk = monthKey(calY, calM0);
-  const ok = confirm(`${mk} のスタンプを削除しますか？`);
-  if(!ok) return;
-
-  for(const key of Object.keys(state.stamps)){
-    if(key.startsWith(mk + "-")) delete state.stamps[key];
+  // stamp "today" only if today is in the shown month
+  const t = new Date();
+  if(t.getFullYear()!==viewDate.getFullYear() || t.getMonth()!==viewDate.getMonth()){
+    toast("今月表示にしてから押してね");
+    return;
   }
+  setStampOnDay(todayKey(t));
+  toast("今日にスタンプしました ✅");
+});
+clearMonthBtn.addEventListener("click", ()=>{
+  const ym = monthKey(viewDate.getFullYear(), viewDate.getMonth());
+  if(!confirm(`${ym} のスタンプを削除しますか？`)) return;
+  state.stamps[ym] = {};
   saveState(state);
   renderCalendar();
   toast("今月のスタンプを削除しました");
 });
-
-// ---------- Toast ----------
-let toastTimer = null;
-function toast(msg){
-  let el = document.getElementById("toast");
-  if(!el){
-    el = document.createElement("div");
-    el.id = "toast";
-    el.style.position = "fixed";
-    el.style.left = "50%";
-    el.style.bottom = "18px";
-    el.style.transform = "translateX(-50%)";
-    el.style.padding = "10px 12px";
-    el.style.borderRadius = "14px";
-    el.style.border = "1px solid rgba(255,255,255,.12)";
-    el.style.background = "rgba(15,23,42,.92)";
-    el.style.color = "rgba(229,231,235,.95)";
-    el.style.fontSize = "13px";
-    el.style.zIndex = "9999";
-    el.style.boxShadow = "0 20px 60px rgba(0,0,0,.45)";
-    document.body.appendChild(el);
-  }
-  el.textContent = msg;
-  el.style.opacity = "1";
-
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(()=>{ el.style.opacity = "0"; }, 1800);
-}
-
-// ---------- Render all ----------
-function renderAll(){
-  renderTop();
-  renderSettings();
-  renderRewards();
-  renderLogs();
+prevMonth.addEventListener("click", ()=>{
+  viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth()-1, 1);
   renderCalendar();
-  drawBar7();
-  drawPie30();
+});
+nextMonth.addEventListener("click", ()=>{
+  viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth()+1, 1);
+  renderCalendar();
+});
+
+/* ===== Analytics ===== */
+$$(".segBtn").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    $$(".segBtn").forEach(b=>b.classList.toggle("isOn", b===btn));
+    state.rangeDays = Number(btn.dataset.range);
+    saveState(state);
+    drawAnalytics();
+  });
+});
+
+function rangeKeys(days){
+  const keys = [];
+  const now = new Date();
+  for(let i=days-1;i>=0;i--){
+    const d = new Date(now);
+    d.setDate(now.getDate()-i);
+    keys.push(todayKey(d));
+  }
+  return keys;
 }
 
-// init
-bindQuickButtons();
+function drawAnalytics(){
+  // stats
+  const days = state.rangeDays || 7;
+  const keys = rangeKeys(days);
+
+  const logs = state.logs.filter(l=>keys.includes(l.date));
+  const totalMin = logs.reduce((a,b)=>a+b.minutes, 0);
+  const totalPt = logs.reduce((a,b)=>a+b.pointsEarned, 0);
+  const avgMin = logs.length ? Math.round(totalMin / days) : 0;
+
+  // streak
+  let streak = 0;
+  for(let i=0;i<365;i++){
+    const d = new Date();
+    d.setDate(d.getDate()-i);
+    const k = todayKey(d);
+    const has = state.logs.some(l=>l.date===k);
+    if(has) streak++;
+    else break;
+  }
+
+  statsEl.innerHTML = "";
+  const statItems = [
+    {name:"合計（分）", val:`${totalMin}`},
+    {name:"合計（pt）", val:`${totalPt}`},
+    {name:"平均/日（分）", val:`${avgMin}`},
+    {name:"連続記録（日）", val:`${streak}`},
+  ];
+  statItems.forEach(s=>{
+    const el = document.createElement("div");
+    el.className = "stat";
+    el.innerHTML = `<div class="statName">${s.name}</div><div class="statVal">${s.val}</div>`;
+    statsEl.appendChild(el);
+  });
+
+  // line data (minutes per day)
+  const perDay = keys.map(k=>{
+    const m = state.logs.filter(l=>l.date===k).reduce((a,b)=>a+b.minutes,0);
+    return m;
+  });
+  // bar data (minutes per subject)
+  const perSubject = {};
+  logs.forEach(l=>{
+    perSubject[l.subject] = (perSubject[l.subject]||0) + l.minutes;
+  });
+  const subjPairs = Object.entries(perSubject).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  drawLine(lineCanvas, keys.map(k=>k.slice(5)), perDay);
+  drawBar(barCanvas, subjPairs.map(x=>x[0]), subjPairs.map(x=>x[1]));
+}
+
+function clearCanvas(ctx, w, h){
+  ctx.clearRect(0,0,w,h);
+}
+function drawLine(canvas, labels, values){
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width = canvas.parentElement.clientWidth * devicePixelRatio;
+  const h = canvas.height = 160 * devicePixelRatio;
+  canvas.style.height = "160px";
+  clearCanvas(ctx,w,h);
+
+  const pad = 28 * devicePixelRatio;
+  const maxV = Math.max(60, ...values);
+  const minV = 0;
+
+  // grid
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = "rgba(30,35,60,.12)";
+  ctx.lineWidth = 1 * devicePixelRatio;
+  for(let i=0;i<=4;i++){
+    const y = pad + (h-pad*2) * (i/4);
+    ctx.beginPath();
+    ctx.moveTo(pad,y);
+    ctx.lineTo(w-pad,y);
+    ctx.stroke();
+  }
+
+  const xStep = (w - pad*2) / Math.max(1, values.length-1);
+  const yOf = (v)=> pad + (h-pad*2) * (1 - (v-minV)/(maxV-minV));
+
+  // line
+  ctx.strokeStyle = "rgba(91,124,250,.95)";
+  ctx.lineWidth = 3 * devicePixelRatio;
+  ctx.beginPath();
+  values.forEach((v,i)=>{
+    const x = pad + xStep*i;
+    const y = yOf(v);
+    if(i===0) ctx.moveTo(x,y);
+    else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  // points
+  ctx.fillStyle = "rgba(255,214,231,.95)";
+  values.forEach((v,i)=>{
+    const x = pad + xStep*i;
+    const y = yOf(v);
+    ctx.beginPath();
+    ctx.arc(x,y,4*devicePixelRatio,0,Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,.06)";
+    ctx.stroke();
+  });
+
+  // labels (simple)
+  ctx.fillStyle = "rgba(30,35,60,.65)";
+  ctx.font = `${11*devicePixelRatio}px system-ui`;
+  const step = Math.ceil(labels.length/7);
+  labels.forEach((t,i)=>{
+    if(i%step!==0 && i!==labels.length-1) return;
+    ctx.fillText(t, pad + xStep*i - 8*devicePixelRatio, h - 10*devicePixelRatio);
+  });
+}
+
+function drawBar(canvas, labels, values){
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width = canvas.parentElement.clientWidth * devicePixelRatio;
+  const h = canvas.height = 190 * devicePixelRatio;
+  canvas.style.height = "190px";
+  clearCanvas(ctx,w,h);
+
+  const pad = 28 * devicePixelRatio;
+  const maxV = Math.max(60, ...values);
+
+  // grid
+  ctx.strokeStyle = "rgba(30,35,60,.12)";
+  ctx.lineWidth = 1 * devicePixelRatio;
+  for(let i=0;i<=4;i++){
+    const y = pad + (h-pad*2) * (i/4);
+    ctx.beginPath();
+    ctx.moveTo(pad,y);
+    ctx.lineTo(w-pad,y);
+    ctx.stroke();
+  }
+
+  const n = Math.max(1, values.length);
+  const barW = (w - pad*2) / n * 0.7;
+  const gap = (w - pad*2) / n * 0.3;
+
+  const yOf = (v)=> pad + (h-pad*2) * (1 - v/maxV);
+
+  values.forEach((v,i)=>{
+    const x = pad + i*(barW+gap) + gap/2;
+    const y = yOf(v);
+    const bh = (h-pad) - y;
+
+    // pastel gradient bars
+    const g = ctx.createLinearGradient(0,y,0,y+bh);
+    g.addColorStop(0, "rgba(182,213,255,.95)");
+    g.addColorStop(1, "rgba(216,255,232,.95)");
+    ctx.fillStyle = g;
+
+    roundRect(ctx, x, y, barW, bh, 10*devicePixelRatio);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(0,0,0,.06)";
+    ctx.stroke();
+
+    // label
+    ctx.save();
+    ctx.fillStyle = "rgba(30,35,60,.65)";
+    ctx.font = `${11*devicePixelRatio}px system-ui`;
+    const txt = labels[i].length>6 ? labels[i].slice(0,6)+"…" : labels[i];
+    ctx.fillText(txt, x, h - 10*devicePixelRatio);
+    ctx.restore();
+  });
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+/* ===== Rewards + Gacha ===== */
+function renderRewards(){
+  rewardList.innerHTML = "";
+  if(state.rewards.length===0){
+    rewardList.innerHTML = `<div class="small dim">まだご褒美がありません。上で追加してね。</div>`;
+    return;
+  }
+  state.rewards.forEach(r=>{
+    const el = document.createElement("div");
+    el.className = "rewardItem";
+    el.innerHTML = `
+      <div>
+        <div><b>${escapeHtml(r.text)}</b></div>
+        <div class="rewardMeta">目安：${r.cost}pt</div>
+      </div>
+      <button class="iconBtn" data-del="${r.id}">削除</button>
+    `;
+    rewardList.appendChild(el);
+  });
+  $$("[data-del]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const id = btn.dataset.del;
+      state.rewards = state.rewards.filter(r=>r.id!==id);
+      saveState(state);
+      renderRewards();
+    });
+  });
+}
+
+addRewardBtn.addEventListener("click", ()=>{
+  const text = rewardText.value.trim();
+  const cost = Math.max(0, Number(rewardCost.value||0));
+  if(!text) return toast("ご褒美内容を入力してね");
+  state.rewards.unshift({ id: crypto.randomUUID(), text, cost });
+  rewardText.value = "";
+  saveState(state);
+  renderRewards();
+  toast("ご褒美を追加しました ✅");
+});
+
+spinGachaBtn.addEventListener("click", ()=>{
+  if(state.rewards.length===0) return toast("先にご褒美を追加してね");
+  const pick = state.rewards[Math.floor(Math.random()*state.rewards.length)];
+  // cost: use pick.cost (if 0 then free)
+  const cost = Math.max(0, pick.cost||0);
+  if(state.points < cost) return toast(`ポイント不足（必要：${cost}pt）`);
+  state.points -= cost;
+  saveState(state);
+  updatePoints();
+
+  showModal(`🎉 ${pick.text}`, `消費：${cost}pt / 残り：${state.points}pt`);
+  popConfetti();
+});
+
+/* ===== Modal ===== */
+function showModal(text, hint){
+  resultText.textContent = text;
+  resultHint.textContent = hint;
+  modal.classList.add("isShow");
+  modal.setAttribute("aria-hidden","false");
+}
+function hideModal(){
+  modal.classList.remove("isShow");
+  modal.setAttribute("aria-hidden","true");
+}
+closeModal.addEventListener("click", hideModal);
+modal.addEventListener("click", (e)=>{ if(e.target===modal) hideModal(); });
+
+/* ===== Confetti (simple) ===== */
+function popConfetti(){
+  confetti.innerHTML = "";
+  const colors = STAMP_COLORS.map(c=>c.color);
+  const n = 36;
+  for(let i=0;i<n;i++){
+    const p = document.createElement("i");
+    const x = Math.random()*100;
+    const delay = Math.random()*0.15;
+    const size = 6 + Math.random()*8;
+    p.style.left = `${x}vw`;
+    p.style.top = `${-10 - Math.random()*20}px`;
+    p.style.width = `${size}px`;
+    p.style.height = `${size}px`;
+    p.style.background = colors[Math.floor(Math.random()*colors.length)];
+    p.style.animationDelay = `${delay}s`;
+    confetti.appendChild(p);
+  }
+  setTimeout(()=>{ confetti.innerHTML=""; }, 1400);
+}
+
+/* ===== Render all ===== */
+function renderHome(){
+  renderLogs();
+  renderStampLegend();
+  renderCalendar();
+}
+function renderAll(){
+  updatePoints();
+  loadSettingsUI();
+  renderHome();
+  renderRewards();
+
+  // restore range button
+  $$(".segBtn").forEach(b=>b.classList.toggle("isOn", Number(b.dataset.range)===state.rangeDays));
+}
 renderAll();
+
+/* ===== Helpers ===== */
+function toast(msg){
+  // super simple toast using alert-style (but not blocking)
+  let t = $("#_toast");
+  if(!t){
+    t = document.createElement("div");
+    t.id = "_toast";
+    t.style.position = "fixed";
+    t.style.left = "50%";
+    t.style.bottom = "18px";
+    t.style.transform = "translateX(-50%)";
+    t.style.padding = "10px 14px";
+    t.style.borderRadius = "14px";
+    t.style.background = "rgba(255,255,255,.88)";
+    t.style.border = "1px solid rgba(0,0,0,.10)";
+    t.style.boxShadow = "0 18px 50px rgba(10,10,25,.12)";
+    t.style.fontWeight = "900";
+    t.style.zIndex = "999";
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = "1";
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(()=>{ t.style.opacity="0"; }, 1800);
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, (m)=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[m]));
+}
