@@ -4,7 +4,7 @@ const LS_KEY = "study_reward_v2";
 const $ = (q) => document.querySelector(q);
 const $$ = (q) => Array.from(document.querySelectorAll(q));
 //Analytics(グラフ用）
-const timeBarCanvas=$（”#timeBarChart");
+const timeBarCanvas=$("#timeBarChart");
 
 const SUBJECTS = [
   "簿記1級","FP2級","FP1級","簿記論","財務諸表論","基本情報","大学院勉強","投資","応用情報","TOEIC"
