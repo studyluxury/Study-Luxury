@@ -89,6 +89,10 @@ const stampLegend = $("#stampLegend");
 
 // Log list
 const logList = $("#logList");
+// Stars UI
+const starTitleEl = $("#starTitle");
+const starRowEl = $("#starRow");
+const starHintEl = $("#starHint");
 
 // Analytics
 const statsEl = $("#stats");
