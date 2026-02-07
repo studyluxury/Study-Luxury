@@ -45,6 +45,22 @@ function loadState(){
   }catch(e){ return null; }
 }
 function saveState(state){
+  function sparkleIfStarUp(){
+  if(!starRowEl) return;
+
+  const today = todayKey();
+  const y = new Date(); y.setDate(y.getDate()-1);
+  const yesterday = todayKey(y);
+
+  const tLevel = calcStarLevelByMinutes(totalMinutesByDate(today));
+  const yLevel = calcStarLevelByMinutes(totalMinutesByDate(yesterday));
+
+  // 「昨日より星が1つ増えた」だけキラッ
+  if(tLevel === yLevel + 1){
+    starRowEl.classList.add("isSparkle");
+    setTimeout(()=>starRowEl.classList.remove("isSparkle"), 700);
+  }
+}
   localStorage.setItem(LS_KEY, JSON.stringify(state));
 }
 function defaultState(){
@@ -669,6 +685,8 @@ function renderHome(){
   renderLogs();
   renderStampLegend();
   renderCalendar();
+  renderStars();
+  sparkleIfStarUp();
 }
 function renderAll(){
   updatePoints();
@@ -825,6 +843,26 @@ function updateTodayStar(){
   [A] renderHome() の最後に 1行追加する
 
   いまの renderHome がこうなら：
+  function renderStars(){
+  if(!starRowEl || !starTitleEl) return;
+
+  const mins = totalMinutesByDate(todayKey());
+  const level = calcStarLevelByMinutes(mins);
+  const title = (STAR_LEVELS.find(s=>s.id===level)?.title) || "";
+
+  starTitleEl.textContent = title;
+
+  // 7個固定表示（0でも7個空）
+  starRowEl.innerHTML = "";
+  for(let i=1;i<=7;i++){
+    const d = document.createElement("div");
+    d.className = "s" + (i<=level ? " on" : "");
+    d.textContent = "★"; // 見た目はCSSでON/OFF
+    starRowEl.appendChild(d);
+  }
+
+  if(starHintEl) starHintEl.textContent = `今日の合計：${mins}分（★${level}）`;
+}
     function renderHome(){
       renderLogs();
       renderStampLegend();
