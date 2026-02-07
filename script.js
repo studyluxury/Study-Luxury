@@ -702,7 +702,150 @@ function toast(msg){
   clearTimeout(window.__toastTimer);
   window.__toastTimer = setTimeout(()=>{ t.style.opacity="0"; }, 1800);
 }
+/* =========================================================
+   ⭐ Stars (0〜7) + がんばり文章（まとめ版）
+   ルール：
+   ★0：0分のみ
+   ★1：1〜25分
+   ★2：26〜60分
+   ★3：61〜75分
+   ★4：76〜90分
+   ★5：91〜120分
+   ★6：121〜239分（181〜239も★6扱い）
+   ★7：240分以上
+   ========================================================= */
 
+/* ===== Stars 定義（必要ならタイトルも使う） ===== */
+const STAR_LEVELS = [
+  { id:0, min:0,   max:0,    title:"これから始まり" },
+  { id:1, min:1,   max:25,   title:"ウォームアップ" },
+  { id:2, min:26,  max:60,   title:"エンジンON" },
+  { id:3, min:61,  max:75,   title:"集中モード" },
+  { id:4, min:76,  max:90,   title:"かなり良い" },
+  { id:5, min:91,  max:120,  title:"絶好調" },
+  { id:6, min:121, max:239,  title:"超集中" },
+  { id:7, min:240, max:9999, title:"神集中" },
+];
+
+/* ===== がんばり文章（星レベルごと） ===== */
+const STAR_MESSAGES = {
+  0: "今日はこれから。まずは1分でもOK 🌱",
+  1: "いいスタート！エンジンかかってきたね 🔥",
+  2: "集中できてる！この調子でいこう 💪",
+  3: "かなり集中できてる。すごい！ ✨",
+  4: "今日は本気モードだね 👏",
+  5: "絶好調！努力が数字に出てる 🌟",
+  6: "超集中状態。自分を誇っていい 🔥🔥",
+  7: "神集中…今日は伝説の日 👑"
+};
+
+/* ===== 今日の合計勉強時間（分） ===== */
+function totalMinutesByDate(dateKey){
+  return state.logs
+    .filter(l => l.date === dateKey)
+    .reduce((a,b) => a + b.minutes, 0);
+}
+
+/* ===== 星判定 ===== */
+function calcStarLevelByMinutes(mins){
+  // ★7：240分以上
+  if(mins >= 240) return 7;
+
+  // ★0：0分のみ
+  if(mins === 0) return 0;
+
+  // ★1：1〜25分
+  if(mins >= 1 && mins <= 25) return 1;
+
+  // ★2：26〜60分
+  if(mins >= 26 && mins <= 60) return 2;
+
+  // ★3：61〜75分
+  if(mins >= 61 && mins <= 75) return 3;
+
+  // ★4：76〜90分
+  if(mins >= 76 && mins <= 90) return 4;
+
+  // ★5：91〜120分
+  if(mins >= 91 && mins <= 120) return 5;
+
+  // ★6：121〜180分
+  if(mins >= 121 && mins <= 180) return 6;
+
+  // ★6：181〜239分も★6扱い
+  return 6;
+}
+
+/* ===== がんばり文章取得 ===== */
+function getStarMessage(starLevel){
+  return STAR_MESSAGES[starLevel] || "";
+}
+
+/* ===== 画面の星＋文章を更新（#starTitle #starHint #starRow を使う） ===== */
+function updateTodayStar(){
+  const today = todayKey();
+  const totalMin = totalMinutesByDate(today);
+  const starLevel = calcStarLevelByMinutes(totalMin);
+
+  const titleEl = document.getElementById("starTitle");
+  const hintEl  = document.getElementById("starHint");
+  const rowEl   = document.getElementById("starRow");
+
+  // まだHTML側に starTitle/starHint/starRow が無い場合は何もしない
+  if(!titleEl || !hintEl || !rowEl) return;
+
+  // がんばり文章
+  titleEl.textContent = getStarMessage(starLevel);
+
+  // 今日の合計分
+  hintEl.textContent = `今日の合計勉強時間：${totalMin}分`;
+
+  // 星表示（最大7個）
+  rowEl.innerHTML = "";
+  for(let i=1; i<=7; i++){
+    const star = document.createElement("span");
+    star.textContent = "★";
+    star.style.fontSize = "20px";
+    star.style.marginRight = "4px";
+    // starLevel が0なら全部灰色、1なら1個だけ黄色…のイメージ
+    star.style.color = (i <= starLevel) ? "#f5b301" : "#ddd";
+    rowEl.appendChild(star);
+  }
+}
+
+/* =========================================================
+   ✅ あとは「1行追加」だけ（ここも同じブロックにまとめて書く）
+   ========================================================= */
+
+/*
+  [A] renderHome() の最後に 1行追加する
+
+  いまの renderHome がこうなら：
+    function renderHome(){
+      renderLogs();
+      renderStampLegend();
+      renderCalendar();
+    }
+
+  ↓ 最後に updateTodayStar(); を追加してこう：
+    function renderHome(){
+      renderLogs();
+      renderStampLegend();
+      renderCalendar();
+      updateTodayStar(); // ← 追加
+    }
+*/
+
+/*
+  [B] 勉強を記録した直後（saveLogBtn の click内）に 1行追加する
+
+  いまの saveLogBtn 内で
+    renderHome();
+    updatePoints();
+
+  となっている直後に、これを追加：
+    updateTodayStar(); // ← 追加
+*/
 function escapeHtml(s){
   return s.replace(/[&<>"']/g, (m)=>({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
