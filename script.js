@@ -422,6 +422,16 @@ function drawAnalytics(){
   const totalMin = logs.reduce((a,b)=>a+b.minutes, 0);
   const totalPt = logs.reduce((a,b)=>a+b.pointsEarned, 0);
   const avgMin = logs.length ? Math.round(totalMin / days) : 0;
+    // ★ボーナス（その日の評価に応じて）
+  const todayMin = totalMinutesByDate(todayKey());
+  const star = calcStarLevelByMinutes(todayMin);
+  const starBonus =
+    (star>=7 ? 700 :
+     star>=5 ? 300 :
+     star>=3 ? 150 :
+     star>=1 ? 50 : 0);
+
+  const totalPtWithBonus = totalPt + starBonus;
 
   // streak
   let streak = 0;
@@ -437,7 +447,7 @@ function drawAnalytics(){
   statsEl.innerHTML = "";
   const statItems = [
     {name:"合計（分）", val:`${totalMin}`},
-    {name:"合計（pt）", val:`${totalPt}`},
+    {name:"合計（pt）", val:`${totalPtWithBonus}`},
     {name:"平均/日（分）", val:`${avgMin}`},
     {name:"連続記録（日）", val:`${streak}`},
   ];
