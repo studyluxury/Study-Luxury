@@ -538,6 +538,55 @@ function drawLine(canvas, labels, values){
 }
 
 function drawBar(canvas, labels, values){
+  function drawTimeBars(canvas, labels, values){
+  if(!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width = canvas.parentElement.clientWidth * devicePixelRatio;
+  const h = canvas.height = 180 * devicePixelRatio;
+  canvas.style.height = "180px";
+  clearCanvas(ctx,w,h);
+
+  const pad = 28 * devicePixelRatio;
+  const maxV = Math.max(60, ...values);
+
+  // grid
+  ctx.strokeStyle = "rgba(30,35,60,.12)";
+  ctx.lineWidth = 1 * devicePixelRatio;
+  for(let i=0;i<=4;i++){
+    const y = pad + (h-pad*2) * (i/4);
+    ctx.beginPath();
+    ctx.moveTo(pad,y);
+    ctx.lineTo(w-pad,y);
+    ctx.stroke();
+  }
+
+  const n = Math.max(1, values.length);
+  const slot = (w - pad*2)/n;
+  const barW = slot * 0.68;
+
+  const yOf = (v)=> pad + (h-pad*2) * (1 - v/maxV);
+
+  values.forEach((v,i)=>{
+    const x = pad + i*slot + (slot-barW)/2;
+    const y = yOf(v);
+    const bh = (h-pad) - y;
+
+    const g = ctx.createLinearGradient(0,y,0,y+bh);
+    g.addColorStop(0, "rgba(255,214,231,.95)");
+    g.addColorStop(1, "rgba(182,213,255,.95)");
+    ctx.fillStyle = g;
+
+    roundRect(ctx, x, y, barW, bh, 10*devicePixelRatio);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(0,0,0,.06)";
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(30,35,60,.65)";
+    ctx.font = `${11*devicePixelRatio}px system-ui`;
+    ctx.fillText(labels[i], x, h - 10*devicePixelRatio);
+  });
+}
   const ctx = canvas.getContext("2d");
   const w = canvas.width = canvas.parentElement.clientWidth * devicePixelRatio;
   const h = canvas.height = 190 * devicePixelRatio;
