@@ -399,3 +399,39 @@ input:focus, select:focus{ border-color: rgba(91,124,250,.45); }
   from{ transform: translateY(-20px) rotate(0deg); }
   to{ transform: translateY(110vh) rotate(420deg); }
 }
+/* ===== Stars (0〜7) ===== */
+.starBox{
+  margin-top:10px;
+  padding:12px;
+  border-radius:18px;
+  border:1px solid var(--stroke);
+  background: linear-gradient(135deg, rgba(255,214,231,.35), rgba(182,213,255,.35));
+}
+.starTitle{ font-weight:950; }
+.starRow{
+  display:flex; gap:6px; align-items:center;
+  margin-top:8px;
+  font-size:18px;
+  letter-spacing:1px;
+}
+.starRow .s{
+  width:22px; height:22px;
+  display:inline-grid; place-items:center;
+  border-radius:8px;
+  border:1px solid rgba(0,0,0,.08);
+  background: rgba(255,255,255,.65);
+}
+.starRow .s.on{
+  background: linear-gradient(135deg, rgba(255,242,182,.95), rgba(216,255,232,.95));
+}
+.starHint{ font-size:12px; opacity:.75; margin-top:6px; }
+
+/* キラッ（星が増えた瞬間） */
+.starRow.isSparkle .s.on{
+  animation: starSparkle .55s ease-out;
+}
+@keyframes starSparkle{
+  0%{ transform: scale(1); filter: brightness(1); }
+  50%{ transform: scale(1.18); filter: brightness(1.25); }
+  100%{ transform: scale(1); filter: brightness(1); }
+}
