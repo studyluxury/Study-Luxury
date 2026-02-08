@@ -1,239 +1,233 @@
 <!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Study Reward</title>
-  <link rel="stylesheet" href="style.css" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Study Reward</title>
+<link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="logo">SR</div>
-      <div>
-        <div class="title">Study Reward</div>
-        <div class="subtitle">記録 → ポイント → ご褒美（ガチャ）</div>
-      </div>
-    </div>
+<header class="topbar">
+<div class="brand">
+<div class="logo">SR</div>
+<div>
+<div class="title">Study Reward</div>
+<div class="subtitle">記録 → ポイント → ご褒美（ガチャ）</div>
+</div>
+</div>
 
-    <nav class="tabs" aria-label="ページ切替">
-      <button class="tab isActive" data-page="home">Home</button>
-      <button class="tab" data-page="analytics">Analytics</button>
-      <button class="tab" data-page="rewards">Rewards</button>
-    </nav>
+<nav class="tabs" aria-label="ページ切替">
+<button class="tab isActive" data-page="home">Home</button>
+<button class="tab" data-page="analytics">Analytics</button>
+<button class="tab" data-page="rewards">Rewards</button>
+</nav>
 
-    <div class="wallet">
-      <div class="walletLabel">所持ポイント</div>
-      <div class="walletValue" id="pointsView">0</div>
-      <div class="walletHint">保存：この端末（localStorage）</div>
-    </div>
-  </header>
+<div class="wallet">
+<div class="walletLabel">所持ポイント</div>
+<div class="walletValue" id="pointsView">0</div>
+<div class="walletHint">保存：この端末（localStorage）</div>
+</div>
+</header>
 
-  <main class="wrap">
-    <!-- ===== Page 1: HOME ===== -->
-    <section class="page isShow" id="page-home">
-      <div class="grid2">
-        <section class="card">
-          <div class="cardHead">
-            <h2>今日の勉強を記録</h2>
-            <div class="starBox">
-              <div class="starTitle" id="starTitle">これから始まり</div>
-              <div class="starRow" id="starRow"></div>
-              <div class="starHint" id="starHint">今日の合計勉強時間で自動評価</div>
-            </div>
-           
-          </div>
+<main class="wrap">
+<!-- ===== Page 1: HOME ===== -->
+<section class="page isShow" id="page-home">
+<div class="grid2">
+<section class="card">
+<div class="cardHead">
+<h2>今日の勉強を記録</h2>
+<span class="pill">入力は全部プルダウンOK</span>
+</div>
 
-          <div class="form">
-            <div class="field fieldWide">
- 　　　　　　　　 <span class="label">今日の達成目標</span>
- 　　　　　　　　 <div id="todayGoals">
-    　　　　　　　　<input class="goalInput" placeholder="例：簿記 仕訳50問">
-    　　　　　　　　<input class="goalInput" placeholder="例：FP 不動産1章">
-    　　　　　　　　<input class="goalInput" placeholder="例：過去問30分">
-  　　　　　　　　</div>
-　　　　　　　　</div>
-          
-            <label class="field">
-              <span class="label">科目</span>
-              <select id="subjectSelect"></select>
-            </label>
+<div class="form">
+<label class="field">
+<span class="label">科目</span>
+<select id="subjectSelect"></select>
+</label>
 
-            <label class="field">
-              <span class="label">勉強時間（分）</span>
-              <select id="minutesSelect"></select>
-            </label>
+<label class="field">
+<span class="label">勉強時間（分）</span>
+<select id="minutesSelect"></select>
+</label>
 
-            <label class="field">
-              <span class="label">ページ数（任意）</span>
-              <select id="pagesSelect"></select>
-            </label>
+<label class="field">
+<span class="label">ページ数（任意）</span>
+<select id="pagesSelect"></select>
+</label>
 
-            <label class="field fieldWide">
-              <span class="label">メモ（任意）</span>
-              <input id="memoInput" type="text" placeholder="例：第3章 過去問／復習" />
-            </label>
+<label class="field fieldWide">
+<span class="label">メモ（任意）</span>
+<input id="memoInput" type="text" placeholder="例：第3章 過去問／復習" />
+</label>
 
-            <div class="row">
-              <button class="btn ghost" id="add25">+25pt</button>
-              <button class="btn ghost" id="add50">+50pt</button>
-              <button class="btn ghost" id="add100">+100pt</button>
-              <div class="spacer"></div>
-              <span class="small">手動加点（気分が乗った日用）</span>
-            </div>
+<div class="row">
+<button class="btn ghost" id="add25">+25pt</button>
+<button class="btn ghost" id="add50">+50pt</button>
+<button class="btn ghost" id="add100">+100pt</button>
+<div class="spacer"></div>
+<span class="small">手動加点（気分が乗った日用）</span>
+</div>
 
-            <div class="row">
-              <button class="btn primary" id="saveLog">記録してポイント加算</button>
-              <button class="btn" id="undoLog">直前の記録を取り消し</button>
-            </div>
+<div class="row">
+<button class="btn primary" id="saveLog">記録してポイント加算</button>
+<button class="btn" id="undoLog">直前の記録を取り消し</button>
+</div>
 
-            <div class="stampBox">
-              <div class="stampHead">
-                <div>
-                  <div class="label">今日のスタンプ</div>
-                  <div class="small">好きな形＆色を選んで「今日にスタンプ」</div>
-                </div>
-                <div class="stampPick">
-                  <select id="stampShape"></select>
-                  <select id="stampColor"></select>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+<div class="stampBox">
+<div class="stampHead">
+<div>
+<div class="label">今日のスタンプ</div>
+<div class="small">好きな形＆色を選んで「今日にスタンプ」</div>
+</div>
+<div class="stampPick">
+<select id="stampShape"></select>
+<select id="stampColor"></select>
+</div>
+</div>
+</div>
+</div>
+</section>
 
-        <section class="card">
-          <div class="cardHead">
-            <h2>達成カレンダー</h2>
-            <span class="pill" id="monthLabel">—</span>
-          </div>
+<section class="card">
+<div class="cardHead">
+<h2>達成カレンダー</h2>
+<span class="pill" id="monthLabel">—</span>
+</div>
 
-          <div class="calTop">
-            <button class="btn tiny" id="prevMonth">←</button>
-            <div class="calTitle" id="calTitle">—</div>
-            <button class="btn tiny" id="nextMonth">→</button>
-          </div>
+<div class="calTop">
+<button class="btn tiny" id="prevMonth">←</button>
+<div class="calTitle" id="calTitle">—</div>
+<button class="btn tiny" id="nextMonth">→</button>
+</div>
 
-          <div class="calLegend" id="stampLegend"></div>
-          <div class="calendar" id="calendar"></div>
+<div class="calLegend" id="stampLegend"></div>
+<div class="calendar" id="calendar"></div>
 
-          <div class="row">
-            <button class="btn primary" id="stampToday">今日にスタンプ</button>
-            <button class="btn danger" id="clearMonth">今月のスタンプ削除</button>
-          </div>
-        </section>
-      </div>
+<div class="row">
+<button class="btn primary" id="stampToday">今日にスタンプ</button>
+<button class="btn danger" id="clearMonth">今月のスタンプ削除</button>
+</div>
+</section>
+</div>
 
-      <section class="card">
-        <div class="cardHead">
-          <h2>履歴</h2>
-          <span class="pill">最新50件</span>
-        </div>
-        <div class="log" id="logList"></div>
-      </section>
-    </section>
+<section class="card">
+<div class="cardHead">
+<h2>履歴</h2>
+<span class="pill">最新50件</span>
+</div>
+<div class="log" id="logList"></div>
+</section>
+</section>
 
-    <!-- ===== Page 2: ANALYTICS ===== -->
-    <section class="page" id="page-analytics">
-      <section class="card">
-        <div class="cardHead">
-          <h2>分析</h2>
-          <div class="seg">
-            <button class="segBtn isOn" data-range="7">直近7日</button>
-            <button class="segBtn" data-range="30">直近30日</button>
-          </div>
-        </div>
+<!-- ===== Page 2: ANALYTICS ===== -->
+<section class="page" id="page-analytics">
+<section class="card">
+<div class="cardHead">
+<h2>分析</h2>
+<div class="seg">
+<button class="segBtn isOn" data-range="7">直近7日</button>
+<button class="segBtn" data-range="30">直近30日</button>
+</div>
+</div>
 
-        <div class="stats" id="stats"></div>
+<div class="stats" id="stats"></div>
 
-        <div class="charts">
-          <div class="chartCard">
-            <div class="chartTitle">勉強時間（棒グラフ）</div>
-            <canvas id="timeBarChart" height="160"></canvas>
-          </div>
-          <div class="chartCard">
-            <div class="chartTitle">科目別合計（分）</div>
-            <canvas id="barChart" height="160"></canvas>
-          </div>
-        </div>
-      </section>
-    </section>
+<div class="charts">
+<div class="chartCard">
+<div class="chartTitle">勉強時間（推移）</div>
+<canvas id="lineChart" height="140"></canvas>
+</div>
+<div class="chartCard">
+<div class="chartTitle">科目別合計（分）</div>
+<canvas id="barChart" height="160"></canvas>
+</div>
+</div>
+</section>
+</section>
 
-    <!-- ===== Page 3: REWARDS ===== -->
-    <section class="page" id="page-rewards">
-      <div class="grid2">
-        <section class="card">
-          <div class="cardHead">
-            <h2>ポイント設定</h2>
-            <span class="pill">あなた用に調整</span>
-          </div>
+<!-- ===== Page 3: REWARDS ===== -->
+<section class="page" id="page-rewards">
+<div class="grid2">
+<section class="card">
+<div class="cardHead">
+<h2>ポイント設定</h2>
+<span class="pill">あなた用に調整</span>
+</div>
 
-          <div class="form">
-            <label class="field">
-              <span class="label">目標報酬（pt）</span>
-              <input id="goalPoint" type="number" min="0" step="10" />
-            </label>
+<div class="form">
+<label class="field">
+<span class="label">目標報酬（pt）</span>
+<input id="goalPoint" type="number" min="0" step="10" />
+</label>
 
-            
+<label class="field">
+<span class="label">1日の獲得上限（pt）</span>
+<input id="dailyCap" type="number" min="0" step="10" />
+</label>
 
-            <div class="row">
-              <button class="btn primary" id="saveSettings">設定を保存</button>
-              <button class="btn danger" id="resetAll">全データ削除</button>
-            </div>
+<label class="field">
+<span class="label">倍率（おすすめ 1.2〜1.6）</span>
+<input id="multiplier" type="number" min="0.5" max="3" step="0.1" />
+</label>
 
-            <div class="small dim">
-              ※保存はこのブラウザ内（端末ごと）。別端末と自動同期しません（安全寄り）。
-            </div>
-          </div>
-        </section>
+<div class="row">
+<button class="btn primary" id="saveSettings">設定を保存</button>
+<button class="btn danger" id="resetAll">全データ削除</button>
+</div>
 
-        <section class="card">
-          <div class="cardHead">
-            <h2>ご褒美（何個でもOK）</h2>
-            <span class="pill">ポイントでガチャ</span>
-          </div>
+<div class="small dim">
+※保存はこのブラウザ内（端末ごと）。別端末と自動同期しません（安全寄り）。
+</div>
+</div>
+</section>
 
-          <div class="form">
-            <label class="field fieldWide">
-              <span class="label">ご褒美内容</span>
-              <input id="rewardText" type="text" placeholder="例：カフェ／お菓子／ピアノ／YouTube 30分" />
-            </label>
+<section class="card">
+<div class="cardHead">
+<h2>ご褒美（何個でもOK）</h2>
+<span class="pill">ポイントでガチャ</span>
+</div>
 
-            <label class="field">
-              <span class="label">必要ポイント（引く時の目安）</span>
-              <input id="rewardCost" type="number" min="0" step="10" value="500" />
-            </label>
+<div class="form">
+<label class="field fieldWide">
+<span class="label">ご褒美内容</span>
+<input id="rewardText" type="text" placeholder="例：カフェ／お菓子／ピアノ／YouTube 30分" />
+</label>
 
-            <div class="row">
-              <button class="btn primary" id="addReward">追加</button>
-              <div class="spacer"></div>
-              <button class="btn sparkle" id="spinGacha">ガチャを回す</button>
-            </div>
+<label class="field">
+<span class="label">必要ポイント（引く時の目安）</span>
+<input id="rewardCost" type="number" min="0" step="10" value="500" />
+</label>
 
-            <div class="rewardList" id="rewardList"></div>
-          </div>
-        </section>
-      </div>
-    </section>
-  </main>
+<div class="row">
+<button class="btn primary" id="addReward">追加</button>
+<div class="spacer"></div>
+<button class="btn sparkle" id="spinGacha">ガチャを回す</button>
+</div>
 
-  <!-- Modal -->
-  <div class="modal" id="modal" aria-hidden="true">
-    <div class="modalCard">
-      <div class="modalHead">
-        <div class="modalTitle">🎁 ガチャ結果</div>
-        <button class="btn tiny" id="closeModal">閉じる</button>
-      </div>
-      <div class="modalBody">
-        <div class="result" id="resultText">—</div>
-        <div class="small dim" id="resultHint">—</div>
-      </div>
-    </div>
-  </div>
+<div class="rewardList" id="rewardList"></div>
+</div>
+</section>
+</div>
+</section>
+</main>
 
-  <!-- confetti layer -->
-  <div class="confetti" id="confetti"></div>
+<!-- Modal -->
+<div class="modal" id="modal" aria-hidden="true">
+<div class="modalCard">
+<div class="modalHead">
+<div class="modalTitle">🎁 ガチャ結果</div>
+<button class="btn tiny" id="closeModal">閉じる</button>
+</div>
+<div class="modalBody">
+<div class="result" id="resultText">—</div>
+<div class="small dim" id="resultHint">—</div>
+</div>
+</div>
+</div>
 
-  <script src="script.js"></script>
+<!-- confetti layer -->
+<div class="confetti" id="confetti"></div>
+
+<script src="script.js"></script>
 </body>
 </html>
